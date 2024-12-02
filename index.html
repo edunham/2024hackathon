@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPR Training Game</title>
+    <style>
+        /* Previous styles remain the same until rate-target-zone */
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .rate-section {
+            position: relative;
+            padding-top: 25px;
+        }
+
+        .rate-display {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .rate-meter {
+            width: 100%;
+            height: 40px;
+            background: #e0e0e0;
+            position: relative;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .rate-target-zone {
+            position: absolute;
+            background: #4CAF50;
+            height: 100%;
+            /* Adjusted position for 100-120 bpm range */
+            left: 66.67%;  /* 100 bpm position on 0-150 scale */
+            width: 13.33%;  /* Width for 20 bpm on 0-150 scale */
+            opacity: 0.3;
+        }
+
+        .rate-labels {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .rate-label {
+            position: absolute;
+            font-size: 12px;
+            top: -20px;
+            transform: translateX(-50%);
+            color: #666;
+        }
+
+        /* Rest of the styles remain the same */
+        .rate-indicator {
+            position: absolute;
+            width: 4px;
+            height: 100%;
+            background: #000;
+            left: 0;
+            transition: left 0.1s ease;
+        }
+
+        .patient-body {
+            width: 100%;
+            height: 400px;
+            background: #fff;
+            border-radius: 10px;
+            position: relative;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .compression-target {
+            position: absolute;
+            left: 50%;
+            top: 40%;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            background: #2196F3;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background-color 0.5s ease;
+        }
+
+        .compression-target.active {
+            background: #1565C0;
+        }
+
+        .status-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #2196F3;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+
+        .button:hover {
+            background: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="rate-section">
+            <div class="rate-display">
+                Current Rate: <span id="rate-number">0</span> compressions/minute
+            </div>
+            <div class="rate-meter">
+                <div class="rate-target-zone"></div>
+                <div class="rate-indicator"></div>
+            </div>
+        </div>
+        
+        <div class="status-panel">
+            <h2>Level <span id="current-level">1</span></h2>
+            <p>Compressions in this round: <span id="compression-count">0</span>/<span id="compressions-needed">30</span></p>
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+            <button class="button" id="reset-button">Reset Level</button>
+        </div>
+
+        <div class="patient-body">
+            <div class="compression-target"></div>
+        </div>
+    </div>
+
+    <script>
+        class CPRGame {
+            constructor() {
+                this.compressionCount = 0;
+                this.currentLevel = 1;
+                this.lastCompressionTime = 0;
+                this.recentCompressions = [];
+                this.targetMinRate = 100; // compressions per minute
+                this.targetMaxRate = 120;
+                this.goodCompressions = 0;
+                this.maxRate = 150; // Maximum rate shown on meter
+
+                // DOM elements
+                this.target = document.querySelector('.compression-target');
+                this.rateIndicator = document.querySelector('.rate-indicator');
+                this.rateDisplay = document.getElementById('rate-number');
+                this.compressionCounter = document.getElementById('compression-count');
+                this.compressionsNeeded = document.getElementById('compressions-needed');
+                this.levelDisplay = document.getElementById('current-level');
+                this.progressBar = document.querySelector('.progress-fill');
+                this.resetButton = document.getElementById('reset-button');
+
+                // Initialize
+                this.updateCompressionsNeeded();
+                this.setupEventListeners();
+                this.updateDisplay();
+                requestAnimationFrame(() => this.updateRateIndicator());
+            }
+
+            get compressionsPerLevel() {
+                return this.currentLevel * 30;
+            }
+
+            updateCompressionsNeeded() {
+                this.compressionsNeeded.textContent = this.compressionsPerLevel;
+            }
+
+            setupEventListeners() {
+                const handleCompression = (e) => {
+                    e.preventDefault();
+                    this.registerCompression();
+                };
+
+                this.target.addEventListener('mousedown', handleCompression);
+                this.target.addEventListener('touchstart', handleCompression);
+                
+                // Prevent holding down
+                this.target.addEventListener('mouseup', () => this.target.classList.remove('active'));
+                this.target.addEventListener('touchend', () => this.target.classList.remove('active'));
+
+                // Reset button
+                this.resetButton.addEventListener('click', () => this.resetLevel());
+            }
+
+            registerCompression() {
+                const now = Date.now();
+                
+                // Debounce compressions (minimum 250ms between)
+                if (now - this.lastCompressionTime < 250) return;
+
+                this.target.classList.add('active');
+                this.lastCompressionTime = now;
+                this.recentCompressions.push(now);
+                
+                // Keep only last 3 compressions for rate calculation (adjusted from 5 for more responsive feedback)
+                if (this.recentCompressions.length > 3) {
+                    this.recentCompressions.shift();
+                }
+
+                this.compressionCount++;
+                
+                // Check if compression was at correct rate
+                const currentRate = this.calculateCurrentRate();
+                if (currentRate >= this.targetMinRate && currentRate <= this.targetMaxRate) {
+                    this.goodCompressions++;
+                }
+
+                this.updateDisplay();
+
+                // Check for level completion
+                if (this.compressionCount >= this.compressionsPerLevel) {
+                    this.completeLevel();
+                }
+            }
+
+            calculateCurrentRate() {
+                if (this.recentCompressions.length < 2) return 0;
+                
+                const timeSpan = (this.recentCompressions[this.recentCompressions.length - 1] - 
+                                this.recentCompressions[0]) / 1000; // convert to seconds
+                const compressionCount = this.recentCompressions.length - 1;
+                
+                return (compressionCount / timeSpan) * 60; // convert to per minute
+            }
+
+            updateRateIndicator() {
+                const rate = this.calculateCurrentRate();
+                // Position calculation adjusted to be more accurate
+                const position = Math.min(Math.max((rate / this.maxRate) * 100, 0), 100);
+                this.rateIndicator.style.left = `${position}%`;
+                this.rateDisplay.textContent = Math.round(rate);
+                
+                requestAnimationFrame(() => this.updateRateIndicator());
+            }
+
+            updateDisplay() {
+                this.compressionCounter.textContent = this.compressionCount;
+                this.levelDisplay.textContent = this.currentLevel;
+                this.progressBar.style.width = `${(this.compressionCount / this.compressionsPerLevel) * 100}%`;
+            }
+
+            resetLevel() {
+                this.compressionCount = 0;
+                this.goodCompressions = 0;
+                this.recentCompressions = [];
+                this.updateDisplay();
+            }
+
+            completeLevel() {
+                // Try to store level data, but handle potential localStorage errors
+                try {
+                    const levelData = {
+                        level: this.currentLevel,
+                        totalCompressions: this.compressionCount,
+                        goodCompressions: this.goodCompressions,
+                        timestamp: new Date().toISOString()
+                    };
+                    
+                    localStorage.setItem(`level_${this.currentLevel}`, JSON.stringify(levelData));
+                } catch (e) {
+                    console.log('Unable to save level data:', e);
+                }
+                
+                // Reset for next level
+                this.currentLevel++;
+                this.updateCompressionsNeeded();
+                this.compressionCount = 0;
+                this.goodCompressions = 0;
+                this.recentCompressions = [];
+                this.updateDisplay();
+            }
+        }
+
+        // Start the game when the page loads
+        window.addEventListener('load', () => {
+            new CPRGame();
+        });
+    </script>
+</body>
+</html>
