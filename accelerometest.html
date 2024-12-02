@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Accelerometer Diagnostic</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .value-display {
+            font-family: monospace;
+            font-size: 1.2em;
+            margin: 10px 0;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+        #status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .error { background: #ffe0e0; }
+        .success { background: #e0ffe0; }
+        #graph {
+            width: 100%;
+            height: 200px;
+            border: 1px solid #ccc;
+            margin: 10px 0;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 0 10px 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Accelerometer Diagnostic</h1>
+    <div id="status">Checking accelerometer availability...</div>
+    
+    <div class="controls">
+        <button id="startBtn">Start Recording</button>
+        <button id="stopBtn" disabled>Stop Recording</button>
+        <button id="clearBtn">Clear Data</button>
+    </div>
+
+    <h2>Real-time Values:</h2>
+    <div id="values" class="value-display">
+        X: 0 m/s², Y: 0 m/s², Z: 0 m/s²<br>
+        Total acceleration: 0 m/s²
+    </div>
+
+    <h2>Peak Values:</h2>
+    <div id="peaks" class="value-display">
+        Max total acceleration: 0 m/s²<br>
+        Min total acceleration: 0 m/s²
+    </div>
+
+    <canvas id="graph"></canvas>
+
+    <script>
+        let recording = false;
+        let data = [];
+        let maxAcc = 0;
+        let minAcc = Infinity;
+        const status = document.getElementById('status');
+        const values = document.getElementById('values');
+        const peaks = document.getElementById('peaks');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const canvas = document.getElementById('graph');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas size and scale for device pixel ratio
+        function resizeCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        function drawGraph() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (data.length < 2) return;
+
+            const width = canvas.width / window.devicePixelRatio;
+            const height = canvas.height / window.devicePixelRatio;
+            const padding = 20;
+
+            // Find min/max for scaling
+            const max = Math.max(...data.map(d => d.total));
+            const min = Math.min(...data.map(d => d.total));
+            const range = max - min;
+
+            // Draw axes
+            ctx.beginPath();
+            ctx.strokeStyle = '#666';
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, height - padding);
+            ctx.lineTo(width - padding, height - padding);
+            ctx.stroke();
+
+            // Draw data points
+            ctx.beginPath();
+            ctx.strokeStyle = '#00f';
+            data.forEach((point, i) => {
+                const x = padding + (i / (data.length - 1)) * (width - 2 * padding);
+                const y = height - padding - ((point.total - min) / range) * (height - 2 * padding);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+        }
+
+        function updateDisplay(acceleration) {
+            const total = Math.sqrt(
+                acceleration.x * acceleration.x + 
+                acceleration.y * acceleration.y + 
+                acceleration.z * acceleration.z
+            );
+
+            values.textContent = 
+                `X: ${acceleration.x.toFixed(2)} m/s², ` +
+                `Y: ${acceleration.y.toFixed(2)} m/s², ` +
+                `Z: ${acceleration.z.toFixed(2)} m/s²\n` +
+                `Total acceleration: ${total.toFixed(2)} m/s²`;
+
+            if (recording) {
+                data.push({
+                    timestamp: Date.now(),
+                    x: acceleration.x,
+                    y: acceleration.y,
+                    z: acceleration.z,
+                    total: total
+                });
+
+                maxAcc = Math.max(maxAcc, total);
+                minAcc = Math.min(minAcc, total);
+                
+                peaks.textContent = 
+                    `Max total acceleration: ${maxAcc.toFixed(2)} m/s²\n` +
+                    `Min total acceleration: ${minAcc.toFixed(2)} m/s²`;
+
+                drawGraph();
+            }
+        }
+
+        startBtn.addEventListener('click', () => {
+            recording = true;
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+        });
+
+        stopBtn.addEventListener('click', () => {
+            recording = false;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        });
+
+        clearBtn.addEventListener('click', () => {
+            data = [];
+            maxAcc = 0;
+            minAcc = Infinity;
+            peaks.textContent = 
+                `Max total acceleration: 0 m/s²\n` +
+                `Min total acceleration: 0 m/s²`;
+            drawGraph();
+        });
+
+        if ('Accelerometer' in window) {
+            try {
+                const accelerometer = new Accelerometer({ frequency: 60 });
+                accelerometer.addEventListener('reading', () => {
+                    updateDisplay(accelerometer);
+                });
+                accelerometer.start();
+                status.textContent = 'Accelerometer active';
+                status.className = 'success';
+            } catch (error) {
+                status.textContent = `Error: ${error.message}`;
+                status.className = 'error';
+            }
+        } else if ('DeviceMotionEvent' in window) {
+            // Fallback to devicemotion event
+            window.addEventListener('devicemotion', (event) => {
+                const acceleration = event.accelerationIncludingGravity;
+                if (acceleration) {
+                    updateDisplay(acceleration);
+                }
+            });
+            status.textContent = 'Using device motion events';
+            status.className = 'success';
+        } else {
+            status.textContent = 'Accelerometer not available';
+            status.className = 'error';
+        }
+    </script>
+</body>
+</html>
