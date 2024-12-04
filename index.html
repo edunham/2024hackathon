@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- Overlay elements -->
+    <!-- Overlay elements remain the same -->
     <div id="welcome-overlay" class="overlay">
         <div class="overlay-content">
             <h2>Welcome</h2>
@@ -64,6 +64,17 @@
 
         <div class="patient-body">
             <div class="compression-target"></div>
+        </div>
+
+        <div class="difficulty-control">
+            <label for="difficulty">Difficulty:</label>
+            <div class="difficulty-slider-container">
+                <input type="range" id="difficulty" min="0" max="1" value="0" step="1">
+                <div class="difficulty-labels">
+                    <span>Low</span>
+                    <span>High</span>
+                </div>
+            </div>
         </div>
     </div>
 

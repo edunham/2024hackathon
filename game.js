@@ -1,5 +1,6 @@
 class CPRGame {
     constructor() {
+        // Existing properties
         this.compressionCount = 0;
         this.currentLevel = 1;
         this.lastCompressionTime = 0;
@@ -10,6 +11,12 @@ class CPRGame {
         this.maxRate = 150;
         this.inactivityTimer = null;
 
+        // New properties for difficulty and sound
+        this.difficulty = 'low';
+        this.metronome = null;
+        this.crunchSound = null;
+        this.isMetronomePlaying = false;
+
         // DOM elements
         this.target = document.querySelector('.compression-target');
         this.rateIndicator = document.querySelector('.rate-indicator');
@@ -19,10 +26,12 @@ class CPRGame {
         this.levelDisplay = document.getElementById('current-level');
         this.progressBar = document.querySelector('.progress-fill');
         this.resetButton = document.getElementById('reset-button');
+        this.difficultySlider = document.getElementById('difficulty');
 
         // Initialize
         this.updateCompressionsNeeded();
         this.setupEventListeners();
+        this.setupSounds();
         this.updateDisplay();
         requestAnimationFrame(() => this.updateRateIndicator());
         
@@ -32,6 +41,13 @@ class CPRGame {
 
     get compressionsPerLevel() {
         return this.currentLevel * 30;
+    }
+
+    setupSounds() {
+        // Prepare audio elements
+        this.metronome = new Audio('metronome.wav');
+        this.metronome.loop = true;
+        this.crunchSound = new Audio('crunch.wav');
     }
 
     showOverlay(overlayId) {
@@ -51,6 +67,8 @@ class CPRGame {
         this.hideOverlays();
         this.resetLevel();
         this.startInactivityTimer();
+        // Start with initial difficulty setting
+        this.setDifficulty(this.difficultySlider.value === '0' ? 'low' : 'high');
     }
 
     startInactivityTimer() {
@@ -92,11 +110,30 @@ class CPRGame {
 
         this.target.addEventListener('mousedown', handleCompression);
         this.target.addEventListener('touchstart', handleCompression);
-        
         this.target.addEventListener('mouseup', () => this.target.classList.remove('active'));
         this.target.addEventListener('touchend', () => this.target.classList.remove('active'));
-
         this.resetButton.addEventListener('click', () => this.resetLevel());
+
+        // Difficulty change listener
+        this.difficultySlider.addEventListener('change', () => {
+            this.setDifficulty(this.difficultySlider.value === '0' ? 'low' : 'high');
+        });
+    }
+
+    setDifficulty(level) {
+        this.difficulty = level;
+        
+        // Handle metronome based on difficulty
+        if (level === 'low') {
+            if (!this.isMetronomePlaying) {
+                this.metronome.play().catch(e => console.log('Audio not loaded yet'));
+                this.isMetronomePlaying = true;
+            }
+        } else {
+            this.metronome.pause();
+            this.metronome.currentTime = 0;
+            this.isMetronomePlaying = false;
+        }
     }
 
     registerCompression() {
@@ -107,6 +144,12 @@ class CPRGame {
         
         // Update the compression time for both compression tracking and inactivity timer
         this.lastCompressionTime = now;
+        
+        // Play crunch sound if on high difficulty
+        if (this.difficulty === 'high') {
+            this.crunchSound.currentTime = 0;
+            this.crunchSound.play().catch(e => console.log('Audio not loaded yet'));
+        }
         
         // Add active class for animation
         this.target.classList.add('active');
@@ -165,6 +208,12 @@ class CPRGame {
         if (this.inactivityTimer) {
             clearInterval(this.inactivityTimer);
         }
+        // Reset sounds
+        this.metronome.pause();
+        this.metronome.currentTime = 0;
+        this.isMetronomePlaying = false;
+        // Re-apply current difficulty setting
+        this.setDifficulty(this.difficulty);
     }
 
     completeLevel() {
@@ -204,9 +253,14 @@ class CPRGame {
     shareToFacebook() {
         console.log('Sharing to Facebook...');
     }
+
+    static init() {
+        // Create the game instance and store it globally
+        window.game = new CPRGame();
+    }
 }
 
-// Start the game when the page loads
-window.addEventListener('load', () => {
-    window.game = new CPRGame();
+// Initialize the game when the DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    CPRGame.init();
 });
