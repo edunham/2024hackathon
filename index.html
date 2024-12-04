@@ -7,22 +7,34 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- Overlay elements remain the same -->
+    <!-- Overlay elements -->
     <div id="welcome-overlay" class="overlay">
         <div class="overlay-content">
-            <h2>Welcome</h2>
-            <p>Instructions will go here</p>
+            <h2>Welcome to CPR Training</h2>
+            <p>Practice chest compressions at the correct rate of 100-120 compressions per minute.</p>
+            <p>Use either the button or place your phone screen-down and press directly onto it.</p>
+            <div class="difficulty-setting">
+                <label for="difficulty">Difficulty:</label>
+                <select id="difficulty">
+                    <option value="0">Easy (with metronome)</option>
+                    <option value="1">Hard (no assistance)</option>
+                </select>
+            </div>
             <button class="overlay-button" onclick="game.startGame()">Start Game</button>
         </div>
     </div>
 
     <div id="level-complete-overlay" class="overlay" style="display: none;">
         <div class="overlay-content">
-            <h2>Congratulations!</h2>
+            <h2>Level Complete!</h2>
             <div class="stats">
                 <p>Level: <span id="completed-level">1</span></p>
                 <p>Average Rate: <span id="avg-rate">0</span> compressions/minute</p>
                 <p>Good Compressions: <span id="good-compressions">0</span></p>
+            </div>
+            <div class="graph-container">
+                <canvas id="acceleration-graph" width="600" height="300"></canvas>
+                <p class="graph-help">Drag the red line to adjust sensitivity for the next level</p>
             </div>
             <div class="share-buttons">
                 <button class="share-button" onclick="game.shareToTwitter()">Share to Twitter</button>
@@ -64,17 +76,6 @@
 
         <div class="patient-body">
             <div class="compression-target"></div>
-        </div>
-
-        <div class="difficulty-control">
-            <label for="difficulty">Difficulty:</label>
-            <div class="difficulty-slider-container">
-                <input type="range" id="difficulty" min="0" max="1" value="0" step="1">
-                <div class="difficulty-labels">
-                    <span>Low</span>
-                    <span>High</span>
-                </div>
-            </div>
         </div>
     </div>
 
