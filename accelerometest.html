@@ -39,6 +39,15 @@
             padding: 10px 20px;
             margin: 0 10px 10px 0;
         }
+        #log-container {
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body>
@@ -49,6 +58,7 @@
         <button id="startBtn">Start Recording</button>
         <button id="stopBtn" disabled>Stop Recording</button>
         <button id="clearBtn">Clear Data</button>
+        <button id="copyBtn">Copy Log</button>
     </div>
 
     <h2>Real-time Values:</h2>
@@ -65,6 +75,9 @@
 
     <canvas id="graph"></canvas>
 
+    <h2>Out-of-Range Values Log:</h2>
+    <div id="log-container"></div>
+
     <script>
         let recording = false;
         let data = [];
@@ -76,6 +89,8 @@
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
         const clearBtn = document.getElementById('clearBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const logContainer = document.getElementById('log-container');
         const canvas = document.getElementById('graph');
         const ctx = canvas.getContext('2d');
 
@@ -125,6 +140,30 @@
             ctx.stroke();
         }
 
+        function logAcceleration(acceleration, timestamp) {
+            if (!recording) return;
+            
+            // Check if values are out of range
+            if (acceleration.x < -2 || acceleration.x > 2 ||
+                acceleration.y < -2 || acceleration.y > 2 ||
+                acceleration.z < 7 || acceleration.z > 11) {
+                
+                const logEntry = `Time: ${timestamp}\n` +
+                    `X: ${acceleration.x.toFixed(2)} m/s²\n` +
+                    `Y: ${acceleration.y.toFixed(2)} m/s²\n` +
+                    `Z: ${acceleration.z.toFixed(2)} m/s²\n` +
+                    `Total: ${Math.sqrt(
+                        acceleration.x * acceleration.x +
+                        acceleration.y * acceleration.y +
+                        acceleration.z * acceleration.z
+                    ).toFixed(2)} m/s²\n` +
+                    '-------------------\n';
+                
+                logContainer.textContent += logEntry;
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+        }
+
         function updateDisplay(acceleration) {
             const total = Math.sqrt(
                 acceleration.x * acceleration.x + 
@@ -139,6 +178,9 @@
                 `Total acceleration: ${total.toFixed(2)} m/s²`;
 
             if (recording) {
+                const timestamp = new Date().toISOString();
+                logAcceleration(acceleration, timestamp);
+                
                 data.push({
                     timestamp: Date.now(),
                     x: acceleration.x,
@@ -177,7 +219,14 @@
             peaks.textContent = 
                 `Max total acceleration: 0 m/s²\n` +
                 `Min total acceleration: 0 m/s²`;
+            logContainer.textContent = '';
             drawGraph();
+        });
+
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(logContainer.textContent)
+                .then(() => alert('Log copied to clipboard!'))
+                .catch(err => alert('Failed to copy log: ' + err));
         });
 
         if ('Accelerometer' in window) {
