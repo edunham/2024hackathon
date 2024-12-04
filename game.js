@@ -11,7 +11,13 @@ class CPRGame {
         this.maxRate = 150;
         this.inactivityTimer = null;
 
-        // New properties for difficulty and sound
+        // Accelerometer properties
+        this.lastButtonPressTime = 0;
+        this.inCompression = false;
+        this.peakThreshold = 11;
+        this.minTimeBetween = 150;
+
+        // Sound properties
         this.difficulty = 'low';
         this.metronome = null;
         this.crunchSound = null;
@@ -29,6 +35,7 @@ class CPRGame {
         this.difficultySlider = document.getElementById('difficulty');
 
         // Initialize
+        this.setupAccelerometer();
         this.updateCompressionsNeeded();
         this.setupEventListeners();
         this.setupSounds();
@@ -39,12 +46,67 @@ class CPRGame {
         this.showOverlay('welcome-overlay');
     }
 
+    setupAccelerometer() {
+        if ('Accelerometer' in window) {
+            try {
+                const accelerometer = new Accelerometer({ frequency: 60 });
+                accelerometer.addEventListener('reading', () => {
+                    this.handleAccelerometerReading(accelerometer);
+                });
+                accelerometer.start();
+            } catch (error) {
+                console.log('Accelerometer error:', error);
+            }
+        } else if ('DeviceMotionEvent' in window) {
+            window.addEventListener('devicemotion', (event) => {
+                if (event.accelerationIncludingGravity) {
+                    this.handleAccelerometerReading(event.accelerationIncludingGravity);
+                }
+            });
+        }
+    }
+
+    handleAccelerometerReading(acceleration) {
+        const total = Math.sqrt(
+            acceleration.x * acceleration.x + 
+            acceleration.y * acceleration.y + 
+            acceleration.z * acceleration.z
+        );
+
+        const now = Date.now();
+        
+        // Don't process accelerometer for 1 second after button press
+        if (now - this.lastButtonPressTime < 1000) {
+            return;
+        }
+
+        if (total > this.peakThreshold && 
+            !this.inCompression && 
+            now - this.lastCompressionTime > this.minTimeBetween) {
+            
+            this.inCompression = true;
+            this.flashGreen();
+            this.registerCompression(true);
+        }
+        
+        if (this.inCompression && total < this.peakThreshold * 0.7) {
+            this.inCompression = false;
+        }
+    }
+
+    flashGreen() {
+        const originalBackground = this.target.style.background;
+        this.target.style.background = '#4CAF50';
+        setTimeout(() => {
+            this.target.style.background = originalBackground;
+        }, 150);
+    }
+
     get compressionsPerLevel() {
         return this.currentLevel * 30;
     }
 
     setupSounds() {
-        // Prepare audio elements
         this.metronome = new Audio('metronome.wav');
         this.metronome.loop = true;
         this.crunchSound = new Audio('crunch.wav');
@@ -67,7 +129,6 @@ class CPRGame {
         this.hideOverlays();
         this.resetLevel();
         this.startInactivityTimer();
-        // Start with initial difficulty setting
         this.setDifficulty(this.difficultySlider.value === '0' ? 'low' : 'high');
     }
 
@@ -105,7 +166,8 @@ class CPRGame {
     setupEventListeners() {
         const handleCompression = (e) => {
             e.preventDefault();
-            this.registerCompression();
+            this.lastButtonPressTime = Date.now();
+            this.registerCompression(false);
         };
 
         this.target.addEventListener('mousedown', handleCompression);
@@ -114,7 +176,6 @@ class CPRGame {
         this.target.addEventListener('touchend', () => this.target.classList.remove('active'));
         this.resetButton.addEventListener('click', () => this.resetLevel());
 
-        // Difficulty change listener
         this.difficultySlider.addEventListener('change', () => {
             this.setDifficulty(this.difficultySlider.value === '0' ? 'low' : 'high');
         });
@@ -123,7 +184,6 @@ class CPRGame {
     setDifficulty(level) {
         this.difficulty = level;
         
-        // Handle metronome based on difficulty
         if (level === 'low') {
             if (!this.isMetronomePlaying) {
                 this.metronome.play().catch(e => console.log('Audio not loaded yet'));
@@ -136,25 +196,21 @@ class CPRGame {
         }
     }
 
-    registerCompression() {
+    registerCompression(isAccelerometer) {
         const now = Date.now();
         
-        // Check debounce before updating lastCompressionTime
-        if (now - this.lastCompressionTime < 250) return;
+        if (!isAccelerometer && now - this.lastCompressionTime < 250) return;
         
-        // Update the compression time for both compression tracking and inactivity timer
         this.lastCompressionTime = now;
         
-        // Play crunch sound if on high difficulty
-        if (this.difficulty === 'high') {
-            this.crunchSound.currentTime = 0;
-            this.crunchSound.play().catch(e => console.log('Audio not loaded yet'));
+        if (!isAccelerometer) {
+            this.target.classList.add('active');
+            if (this.difficulty === 'high') {
+                this.crunchSound.currentTime = 0;
+                this.crunchSound.play().catch(e => console.log('Audio not loaded yet'));
+            }
         }
         
-        // Add active class for animation
-        this.target.classList.add('active');
-        
-        // Track compression
         this.recentCompressions.push(now);
         
         if (this.recentCompressions.length > 3) {
@@ -204,15 +260,15 @@ class CPRGame {
         this.compressionCount = 0;
         this.goodCompressions = 0;
         this.recentCompressions = [];
+        this.inCompression = false;
+        this.lastButtonPressTime = 0;
         this.updateDisplay();
         if (this.inactivityTimer) {
             clearInterval(this.inactivityTimer);
         }
-        // Reset sounds
         this.metronome.pause();
         this.metronome.currentTime = 0;
         this.isMetronomePlaying = false;
-        // Re-apply current difficulty setting
         this.setDifficulty(this.difficulty);
     }
 
@@ -234,7 +290,6 @@ class CPRGame {
             console.log('Unable to save level data:', e);
         }
 
-        // Update completion overlay
         document.getElementById('completed-level').textContent = this.currentLevel;
         document.getElementById('avg-rate').textContent = this.rateDisplay.textContent;
         document.getElementById('good-compressions').textContent = this.goodCompressions;
@@ -255,12 +310,10 @@ class CPRGame {
     }
 
     static init() {
-        // Create the game instance and store it globally
         window.game = new CPRGame();
     }
 }
 
-// Initialize the game when the DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     CPRGame.init();
 });
