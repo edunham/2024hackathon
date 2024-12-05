@@ -20,7 +20,7 @@ class CPRGame {
         // Accelerometer properties
         this.lastButtonPressTime = 0;
         this.inCompression = false;
-        this.peakThreshold = localStorage.getItem('peakThreshold') ? 
+        this.peakThreshold = localStorage.getItem('peakThreshold') ?
             parseFloat(localStorage.getItem('peakThreshold')) : 11;
         this.minTimeBetween = 150;
         this.accelerometerData = [];
@@ -50,7 +50,7 @@ class CPRGame {
         this.setupGraphInteraction();
         this.setupSounds();
         this.updateDisplay();
-        
+
         // Start animation loops
         requestAnimationFrame(() => this.updateRateIndicator());
         this.showOverlay('welcome-overlay');
@@ -63,13 +63,13 @@ class CPRGame {
         const container = this.graphCanvas.parentElement;
         const rect = container.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
-        
+
         this.graphCanvas.style.width = '100%';
         this.graphCanvas.style.height = '300px';
-        
+
         this.graphCanvas.width = rect.width * dpr;
         this.graphCanvas.height = 300 * dpr;
-        
+
         this.graphCtx.scale(dpr, dpr);
     }
 
@@ -130,8 +130,8 @@ class CPRGame {
 
     handleAccelerometerReading(acceleration) {
         const total = Math.sqrt(
-            acceleration.x * acceleration.x + 
-            acceleration.y * acceleration.y + 
+            acceleration.x * acceleration.x +
+            acceleration.y * acceleration.y +
             acceleration.z * acceleration.z
         );
 
@@ -140,7 +140,7 @@ class CPRGame {
         // Clean up old data (keep last 30 seconds)
         const cutoff = now - 30000;
         this.accelerometerData = this.accelerometerData.filter(d => d.timestamp > cutoff);
-        
+
         this.accelerometerData.push({
             timestamp: now,
             total: total,
@@ -152,10 +152,10 @@ class CPRGame {
         // Don't process if button was recently pressed
         if (now - this.lastButtonPressTime < 1000) return;
 
-        if (total > this.peakThreshold && 
-            !this.inCompression && 
+        if (total > this.peakThreshold &&
+            !this.inCompression &&
             now - this.lastCompressionTime > this.minTimeBetween) {
-            
+
             this.inCompression = true;
             this.flashGreen();
             this.registerCompression(true);
@@ -164,7 +164,7 @@ class CPRGame {
                 magnitude: total
             });
         }
-        
+
         if (this.inCompression && total < this.peakThreshold * 0.7) {
             this.inCompression = false;
         }
@@ -234,7 +234,7 @@ class CPRGame {
         this.accelerometerData.forEach((point, i) => {
             const x = padding + ((point.timestamp - minTime) / timeRange) * (width - 2 * padding);
             const y = height - padding - (point.total / maxAcc) * (height - 2 * padding);
-            
+
             if (i === 0) ctx.moveTo(x, y);
             else ctx.lineTo(x, y);
         });
@@ -372,7 +372,7 @@ class CPRGame {
 
     setDifficulty(level) {
         this.difficulty = level;
-        
+
         if (level === 'low') {
             if (!this.isMetronomePlaying) {
                 this.metronome.play().catch(e => console.log('Audio not loaded yet'));
@@ -387,135 +387,123 @@ class CPRGame {
 
     registerCompression(isAccelerometer) {
         const now = Date.now();
-        
+
         if (!isAccelerometer && now - this.lastCompressionTime < 250) return;
-        
+
         this.lastCompressionTime = now;
-        
+        if (this.difficulty === 'high') {
+            this.crunchSound.currentTime = 0;
+            this.crunchSound.play().catch(e => console.log('Audio not loaded yet'));
+        }
+
         if (!isAccelerometer) {
             this.target.classList.add('active');
-            if (this.difficulty === 'high') {
-                this.crunchSound.currentTime = 0;
-                this.crunchSound.play().catch(e => console
+        }
 
-                    registerCompression(isAccelerometer) {
-                        const now = Date.now();
-                        
-                        if (!isAccelerometer && now - this.lastCompressionTime < 250) return;
-                        
-                        this.lastCompressionTime = now;
-                        
-                        if (!isAccelerometer) {
-                            this.target.classList.add('active');
-                            if (this.difficulty === 'high') {
-                                this.crunchSound.currentTime = 0;
-                                this.crunchSound.play().catch(e => console.log('Audio not loaded yet'));
-                            }
-                        }
-                        
-                        this.recentCompressions.push(now);
-                        
-                        if (this.recentCompressions.length > 3) {
-                            this.recentCompressions.shift();
-                        }
-                
-                        this.compressionCount++;
-                        
-                        const currentRate = this.calculateCurrentRate();
-                        if (currentRate >= this.targetMinRate && currentRate <= this.targetMaxRate) {
-                            this.goodCompressions++;
-                        }
-                
-                        this.updateDisplay();
-                
-                        if (this.compressionCount >= this.compressionsPerLevel) {
-                            this.completeLevel();
-                        }
-                    }
-                
-                    calculateCurrentRate() {
-                        if (this.recentCompressions.length < 2) return 0;
-                        
-                        const timeSpan = (this.recentCompressions[this.recentCompressions.length - 1] - 
-                                        this.recentCompressions[0]) / 1000;
-                        const compressionCount = this.recentCompressions.length - 1;
-                        
-                        return (compressionCount / timeSpan) * 60;
-                    }
-                
-                    updateRateIndicator() {
-                        const rate = this.calculateCurrentRate();
-                        const position = Math.min(Math.max((rate / this.maxRate) * 100, 0), 100);
-                        this.rateIndicator.style.left = `${position}%`;
-                        this.rateDisplay.textContent = Math.round(rate);
-                        
-                        requestAnimationFrame(() => this.updateRateIndicator());
-                    }
-                
-                    updateDisplay() {
-                        this.compressionCounter.textContent = this.compressionCount;
-                        this.levelDisplay.textContent = this.currentLevel;
-                        this.progressBar.style.width = `${(this.compressionCount / this.compressionsPerLevel) * 100}%`;
-                    }
-                
-                    resetLevel() {
-                        this.compressionCount = 0;
-                        this.goodCompressions = 0;
-                        this.recentCompressions = [];
-                        this.inCompression = false;
-                        this.lastButtonPressTime = 0;
-                        this.updateDisplay();
-                        if (this.inactivityTimer) {
-                            clearInterval(this.inactivityTimer);
-                        }
-                        this.metronome.pause();
-                        this.metronome.currentTime = 0;
-                        this.isMetronomePlaying = false;
-                        this.setDifficulty(this.difficulty);
-                    }
-                
-                    completeLevel() {
-                        if (this.inactivityTimer) {
-                            clearInterval(this.inactivityTimer);
-                        }
-                
-                        try {
-                            const levelData = {
-                                level: this.currentLevel,
-                                totalCompressions: this.compressionCount,
-                                goodCompressions: this.goodCompressions,
-                                timestamp: new Date().toISOString()
-                            };
-                            
-                            localStorage.setItem(`level_${this.currentLevel}`, JSON.stringify(levelData));
-                        } catch (e) {
-                            console.log('Unable to save level data:', e);
-                        }
-                
-                        document.getElementById('completed-level').textContent = this.currentLevel;
-                        document.getElementById('avg-rate').textContent = this.rateDisplay.textContent;
-                        document.getElementById('good-compressions').textContent = this.goodCompressions;
-                        
-                        this.showOverlay('level-complete-overlay');
-                    }
-                
-                    shareToTwitter() {
-                        console.log('Sharing to Twitter...');
-                    }
-                
-                    shareToLinkedIn() {
-                        console.log('Sharing to LinkedIn...');
-                    }
-                
-                    shareToFacebook() {
-                        console.log('Sharing to Facebook...');
-                    }
-                
-                    static init() {
-                        window.game = new CPRGame();
-                    }
-                }
-                
-                document.addEventListener('DOMContentLoaded', () => {
-                    CPRGame.init();
-                });
+        this.recentCompressions.push(now);
+
+        if (this.recentCompressions.length > 3) {
+            this.recentCompressions.shift();
+        }
+
+        this.compressionCount++;
+
+        const currentRate = this.calculateCurrentRate();
+        if (currentRate >= this.targetMinRate && currentRate <= this.targetMaxRate) {
+            this.goodCompressions++;
+            this.flashGreen()
+        }
+
+        this.updateDisplay();
+
+        if (this.compressionCount >= this.compressionsPerLevel) {
+            this.completeLevel();
+        }
+    }
+
+    calculateCurrentRate() {
+        if (this.recentCompressions.length < 2) return 0;
+
+        const timeSpan = (this.recentCompressions[this.recentCompressions.length - 1] -
+            this.recentCompressions[0]) / 1000;
+        const compressionCount = this.recentCompressions.length - 1;
+
+        return (compressionCount / timeSpan) * 60;
+    }
+
+    updateRateIndicator() {
+        const rate = this.calculateCurrentRate();
+        const position = Math.min(Math.max((rate / this.maxRate) * 100, 0), 100);
+        this.rateIndicator.style.left = `${position}%`;
+        this.rateDisplay.textContent = Math.round(rate);
+
+        requestAnimationFrame(() => this.updateRateIndicator());
+    }
+
+    updateDisplay() {
+        this.compressionCounter.textContent = this.compressionCount;
+        this.levelDisplay.textContent = this.currentLevel;
+        this.progressBar.style.width = `${(this.compressionCount / this.compressionsPerLevel) * 100}%`;
+    }
+
+    resetLevel() {
+        this.compressionCount = 0;
+        this.goodCompressions = 0;
+        this.recentCompressions = [];
+        this.inCompression = false;
+        this.lastButtonPressTime = 0;
+        this.updateDisplay();
+        if (this.inactivityTimer) {
+            clearInterval(this.inactivityTimer);
+        }
+        this.metronome.pause();
+        this.metronome.currentTime = 0;
+        this.isMetronomePlaying = false;
+        this.setDifficulty(this.difficulty);
+    }
+
+    completeLevel() {
+        if (this.inactivityTimer) {
+            clearInterval(this.inactivityTimer);
+        }
+
+        try {
+            const levelData = {
+                level: this.currentLevel,
+                totalCompressions: this.compressionCount,
+                goodCompressions: this.goodCompressions,
+                timestamp: new Date().toISOString()
+            };
+
+            localStorage.setItem(`level_${this.currentLevel}`, JSON.stringify(levelData));
+        } catch (e) {
+            console.log('Unable to save level data:', e);
+        }
+
+        document.getElementById('completed-level').textContent = this.currentLevel;
+        document.getElementById('avg-rate').textContent = this.rateDisplay.textContent;
+        document.getElementById('good-compressions').textContent = this.goodCompressions;
+
+        this.showOverlay('level-complete-overlay');
+    }
+
+    shareToTwitter() {
+        console.log('Sharing to Twitter...');
+    }
+
+    shareToLinkedIn() {
+        console.log('Sharing to LinkedIn...');
+    }
+
+    shareToFacebook() {
+        console.log('Sharing to Facebook...');
+    }
+
+    static init() {
+        window.game = new CPRGame();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    CPRGame.init();
+});
